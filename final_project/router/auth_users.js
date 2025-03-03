@@ -18,73 +18,94 @@ const isValid = (username)=>{ //returns boolean
         return false;
     }
 }
-
-const authenticatedUser = (username,password)=>{ //returns boolean
-    // Filter the users array for any user with the same username and password
-    let validusers = users.filter((user) => {
-        return (user.username === username && user.password === password);
-    });
-    // Return true if any valid user is found, otherwise false
-    if (validusers.length > 0) {
-        return true;
+regd_users.get("/auth/check", (req, res) => {
+    if (req.session.authorization) {
+        return res.json({ message: "User is logged in", session: req.session });
     } else {
-        return false;
+        return res.status(403).json({ message: "User not logged in" });
     }
-}
-
-//only registered users can login
-regd_users.post("/login", (req,res) => {
-  //Write your code here
-  const { username, password } = req.body; // Get username and password from request body
-
-  // Check if username and password are provided
-  if (!username || !password) {
-      return res.status(400).json({ message: "Username and password are required." });
-  }
-
-  // Check if the username exists in the users database
-  if (!users[username]) {
-      return res.status(404).json({ message: "User not found." });
-  }
-
-  // Check if the password matches the stored password
-  if (users[username].password !== password) {
-      return res.status(401).json({ message: "Invalid password." });
-  }
-
-  // Create a JWT token with the username as payload
-  const token = jwt.sign({ username }, secretKey, { expiresIn: "1h" }); // The token expires in 1 hour
-
-  // Send the token back to the client
-  res.status(200).json({ message: "Login successful", token });
 });
+regd_users.post("/login", (req, res) => {
+    const { username, password } = req.body;
 
-// Add a book review
-regd_users.put("/auth/review/:isbn", (req, res) => {
-    const username = req.body.username;
-    const password = req.body.password;
-
-    // Check if username or password is missing
     if (!username || !password) {
-        return res.status(404).json({ message: "Error logging in" });
+        return res.status(400).json({ message: "Username and password are required." });
     }
 
-    // Authenticate user
-    if (authenticatedUser(username, password)) {
-        // Generate JWT access token
-        let accessToken = jwt.sign({
-            data: password
-        }, 'access', { expiresIn: 60 * 60 });
-
-        // Store access token and username in session
-        req.session.authorization = {
-            accessToken, username
-        }
-        return res.status(200).send("User successfully logged in");
-    } else {
-        return res.status(208).json({ message: "Invalid Login. Check username and password" });
+    // Vérifier si l'utilisateur existe dans l'objet `users`
+    if (!users[username]) {
+        return res.status(404).json({ message: "User not found." });
     }
+
+    // Vérifier si le mot de passe correspond
+    if (users[username].password !== password) {
+        return res.status(401).json({ message: "Invalid username or password." });
+    }
+
+    // Générer le token JWT
+    const accessToken = jwt.sign({ username }, secretKey, { expiresIn: "1h" });
+
+    // Stocker le token et l'utilisateur dans la session
+    req.session.authorization = { accessToken, username };
+
+    return res.status(200).json({ message: "Login successful", token: accessToken });
 });
+
+regd_users.put("/auth/review/:isbn", (req, res) => {
+    const username = req.user?.username; // Récupérer l'utilisateur à partir du JWT
+    const { review } = req.body;
+    const isbn = req.params.isbn;
+
+    if (!username) {
+        return res.status(403).json({ message: "Unauthorized: Please log in to submit a review." });
+    }
+
+    if (!books[isbn]) {
+        return res.status(404).json({ message: "Book not found." });
+    }
+
+    if (!review) {
+        return res.status(400).json({ message: "Review content cannot be empty." });
+    }
+
+    if (!books[isbn].reviews) {
+        books[isbn].reviews = {};
+    }
+
+    books[isbn].reviews[username] = review;
+
+    return res.json({ 
+        message: "Review added/updated successfully!", 
+        reviews: books[isbn].reviews 
+    });
+});
+
+regd_users.delete("/auth/review/:isbn", (req, res) => {
+    const username = req.user?.username; // Récupérer l'utilisateur à partir du JWT
+    const isbn = req.params.isbn;
+
+    if (!username) {
+        return res.status(403).json({ message: "Unauthorized: Please log in to delete a review." });
+    }
+
+    if (!books[isbn]) {
+        return res.status(404).json({ message: "Book not found." });
+    }
+
+    if (!books[isbn].reviews || !books[isbn].reviews[username]) {
+        return res.status(404).json({ message: "Review not found for this user." });
+    }
+
+    // Supprimer la critique de l'utilisateur
+    delete books[isbn].reviews[username];
+
+    return res.json({ 
+        message: "Review deleted successfully!", 
+        reviews: books[isbn].reviews 
+    });
+});
+
+
 
 module.exports.authenticated = regd_users;
 module.exports.isValid = isValid;

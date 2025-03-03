@@ -4,6 +4,100 @@ let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
 const public_users = express.Router();
 
+const axios = require('axios');
+
+// Route pour obtenir la liste des livres avec async/await
+public_users.get('/', async function (req, res) {
+    try {
+        // Simuler une récupération asynchrone des livres (vous pouvez aussi appeler une API externe ici)
+        const getBooks = async () => {
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    resolve(books); // Simuler une réponse réussie
+                }, 1000); // Délai pour montrer l'asynchronicité
+            });
+        };
+
+        const bookList = await getBooks(); // Attendre que la promesse soit résolue
+        res.status(200).json(bookList); // Retourner la liste des livres
+    } catch (error) {
+        res.status(500).json({ message: "Erreur lors de la récupération des livres." });
+    }
+});
+
+
+// Route pour obtenir les détails d'un livre par ISBN avec async/await
+public_users.get('/isbn/:isbn', async function (req, res) {
+    const isbn = req.params.isbn;
+
+    try {
+        // Simuler une requête asynchrone pour récupérer les détails du livre
+        const bookDetails = await new Promise((resolve, reject) => {
+            setTimeout(() => {
+                if (books[isbn]) {
+                    resolve(books[isbn]);
+                } else {
+                    reject("Livre non trouvé");
+                }
+            }, 1000);
+        });
+
+        res.json(bookDetails);
+    } catch (error) {
+        res.status(404).json({ message: error });
+    }
+});
+
+// Route pour obtenir les détails d'un livre par auteur avec async/await
+public_users.get('/author/:author', async function (req, res) {
+    const authorName = req.params.author.toLowerCase();
+
+    try {
+        const booksByAuthor = await new Promise((resolve) => {
+            setTimeout(() => {
+                const results = Object.keys(books).filter((isbn) => 
+                    books[isbn].author.toLowerCase() === authorName
+                ).map((isbn) => ({ isbn, ...books[isbn] }));
+                resolve(results);
+            }, 1000);
+        });
+
+        if (booksByAuthor.length > 0) {
+            res.json(booksByAuthor);
+        } else {
+            res.status(404).json({ message: "Aucun livre trouvé pour cet auteur" });
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Erreur lors de la récupération des livres par auteur." });
+    }
+});
+
+// Route pour obtenir les détails d'un livre par titre avec async/await
+public_users.get('/title/:title', async function (req, res) {
+    const titleQuery = req.params.title.toLowerCase();
+
+    try {
+        const foundBook = await new Promise((resolve, reject) => {
+            setTimeout(() => {
+                const book = Object.keys(books).find((isbn) => 
+                    books[isbn].title.toLowerCase() === titleQuery
+                );
+
+                if (book) {
+                    resolve({ isbn: book, ...books[book] });
+                } else {
+                    reject("Aucun livre trouvé avec ce titre");
+                }
+            }, 1000);
+        });
+
+        res.json(foundBook);
+    } catch (error) {
+        res.status(404).json({ message: error });
+    }
+});
+
+
 // Route to register a new user
 public_users.post("/register", (req, res) => {
     const { username, password } = req.body; // Get username and password from request body

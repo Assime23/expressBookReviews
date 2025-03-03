@@ -7,26 +7,28 @@ const genl_routes = require('./router/general.js').general;
 const app = express();
 
 app.use(express.json());
+const secretKey = "fingerprint_customer"; // Clé secrète pour JWT
 
 app.use("/customer",session({secret:"fingerprint_customer",resave: true, saveUninitialized: true}))
 
-app.use("/customer/auth/*", function auth(req,res,next){
-    if (req.session.authorization) {
-        let token = req.session.authorization['accessToken'];
+// Middleware pour vérifier le JWT
+app.use("/customer/auth/*", function auth(req, res, next) {
+    const token = req.headers['authorization']?.split(' ')[1]; // On récupère le token du header Authorization
 
-        // Verify JWT token
-        jwt.verify(token, "access", (err, user) => {
-            if (!err) {
-                req.user = user;
-                next(); // Proceed to the next middleware
-            } else {
-                return res.status(403).json({ message: "User not authenticated" });
-            }
-        });
-    } else {
+    if (!token) {
         return res.status(403).json({ message: "User not logged in" });
     }
+
+    // Vérifier le token JWT
+    jwt.verify(token, secretKey, (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: "User not authenticated" });
+        }
+        req.user = user; // Stocker les informations de l'utilisateur dans la requête
+        next(); // Continuer vers la route protégée
+    });
 });
+
  
 const PORT =5000;
 
